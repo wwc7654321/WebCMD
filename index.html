@@ -1,0 +1,13 @@
+<html>
+<head><title>{{.Title}}</title></head><body>{{.TimeTag}}
+<script src="/Script/webc.js"></script>
+<br>cmd:{{.Cmd}}
+<br>Output:
+<textarea style="width:500px;height:500px"></textarea>
+<form method="post" target="myIframe" action="DoCmd" id="form1">
+<textarea name="cmd" style="width:500px;height:20px" id="cmd"></textarea>
+<iframe name="myIframe" style="display:none"></iframe>
+<input type="submit" value="DoCmd"/></form>
+<script>var sKey="{{.SKey}}";init(sKey);</script>
+</body>
+</html>
