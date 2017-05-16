@@ -1,9 +1,13 @@
 package cmdmgr
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os/exec"
 	"time"
+
+	"github.com/axgle/mahonia"
 )
 
 // CmdSessionManager ...
@@ -13,16 +17,17 @@ type CmdSessionManager struct {
 
 // CmdSession ...
 type CmdSession struct {
-	running     bool
-	sessionID   string
-	cmd         *exec.Cmd
-	outcmd      chan string
-	incmd       chan string
-	end         bool
-	state       int
-	starttime   time.Time
-	lastcmdtime time.Time
-	endtime     time.Time
+	Running     bool
+	SessionID   string
+	Cmd         *exec.Cmd
+	Outcmd      chan string
+	Incmd       chan string
+	Stopped     bool
+	StartTime   time.Time
+	LastCmdTime time.Time
+	EndTime     time.Time
+	outpipe     io.ReadCloser
+	inpipe      io.WriteCloser
 }
 
 // NewCmdManager ...
@@ -45,10 +50,11 @@ func (cm *CmdSessionManager) GetCmdSession(sessionID string) *CmdSession {
 		make(chan string, 1024),
 		make(chan string, 1024),
 		false,
-		0,
 		time.Now(),
 		time.Now(),
 		time.Now(),
+		nil,
+		nil,
 	}
 	cm.sessions[sessionID] = cs
 	return cs
@@ -67,42 +73,98 @@ func (cm *CmdSessionManager) DeleteCmdSession(sessionID string) {
 // CheckSessions ...
 func (cm *CmdSessionManager) CheckSessions(funcCheck CheckSessionExist) {
 	for _, v := range cm.sessions {
-		if funcCheck(v.sessionID) != true {
-			cm.DeleteCmdSession(v.sessionID)
+		if funcCheck(v.SessionID) != true {
+			cm.DeleteCmdSession(v.SessionID)
 		}
 	}
 }
 
 // Start ...
-func (cs *CmdSession) Start() {
-	if cs.running {
-		return
+func (cs *CmdSession) Start() bool {
+	if cs.Running {
+		return false
 	}
 	//ctx, cancel := context.WithCancel(context.Background())
-	fmt.Println("Cmd Session Start..", cs.sessionID)
+	cs.Cmd = exec.Command("cmd", "") //  " /k echo 1&c:\\sleep 2000&echo 2&c:\\sleep 2000&echo 3&c:\\sleep 2000&echo 4&c:\\sleep 2000&echo 5"
+	cs.outpipe, _ = cs.Cmd.StdoutPipe()
+	cs.inpipe, _ = cs.Cmd.StdinPipe()
+
+	if cs.Cmd.Start() == nil {
+
+		cs.Running = true
+		go cs.run(1)
+		go cs.run(2)
+		fmt.Println("Cmd Session Start..", cs.SessionID)
+		return true
+	}
+	return false
+
 }
 
 // End ...
 func (cs *CmdSession) End(force bool) {
-	if !cs.running {
+	if !cs.Running {
 		return
 	}
-	if cs.cmd != nil && cs.cmd.Process != nil {
-		if !cs.cmd.ProcessState.Exited() {
-			if force {
-				cs.cmd.Process.Kill()
-			} else {
-				cs.cmd.Wait()
-			}
+	cs.Running = false
+	close(cs.Outcmd)
+	close(cs.Incmd)
+	if cs.Cmd != nil && cs.Cmd.Process != nil {
+		//if !cs.cmd.ProcessState.Exited() {
+		if force {
+			cs.Cmd.Process.Kill()
+		} else {
+			cs.Cmd.Wait()
 		}
+		//}
 	}
-	cs.cmd = nil
-	cs.running = false
-	close(cs.outcmd)
-	close(cs.incmd)
+	cs.Cmd = nil
+	cs.Stopped = true
 }
 
-// Run ...
-func (cs *CmdSession) Run() {
+func (cs *CmdSession) run(ioro int) {
+	if ioro == 1 {
+		reader := bufio.NewReader(cs.outpipe)
+		pid := cs.Cmd.Process.Pid
+		fmt.Println("pid :", pid)
+		for {
+			line, err2 := reader.ReadString('\n')
+			if err2 != nil || io.EOF == err2 || cs.Cmd == nil || !cs.Running {
+				break
+			}
 
+			line = ConvertToString(line, "gbk", "utf-8")
+			fmt.Println(" * ", line)
+			select {
+			case cs.Outcmd <- line:
+			default:
+			}
+		}
+		fmt.Println("fini", ioro)
+		cs.End(false)
+	} else if ioro == 2 {
+		//writer := bufio.NewWriter(cs.inpipe)
+		for {
+			cmdstr := <-cs.Incmd
+			if cs.Cmd == nil || !cs.Running {
+				break
+			}
+			fmt.Println(" # ", cmdstr)
+			fmt.Fprintln(cs.inpipe, cmdstr)
+			//writer.WriteString(cmdstr)
+			//writer.Flush()
+		}
+		fmt.Println("fini", ioro)
+	}
+}
+
+// ConvertToString 编码转换
+//  eg. ConvertToString(line, "gbk", "utf-8")
+func ConvertToString(src string, srcCode string, tagCode string) string {
+	srcCoder := mahonia.NewDecoder(srcCode)
+	srcResult := srcCoder.ConvertString(src)
+	tagCoder := mahonia.NewDecoder(tagCode)
+	_, cdata, _ := tagCoder.Translate([]byte(srcResult), true)
+	result := string(cdata)
+	return result
 }

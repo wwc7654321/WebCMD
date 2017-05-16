@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 
 	"./cmdmgr"
 	"github.com/astaxie/beego/session"
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -40,8 +42,9 @@ func getCurrentDirectory() string {
 
 var fs http.Handler  // 文件Handler
 var ms http.ServeMux // 多路由Handler
+var ws http.Handler  // WebSocket Handler
 
-type as struct{}
+type as struct{} // 自定义Handler
 
 func (*as) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.String() //获得访问的路径
@@ -52,14 +55,18 @@ func (*as) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fallthrough
 	case strings.HasPrefix(strings.ToLower(path), "/static"):
 		fs.ServeHTTP(w, r) // 静态路径下的传递给FileServer Handler
+	case strings.HasPrefix(strings.ToLower(path), "/ws"):
+		ws.ServeHTTP(w, r)
 	default:
 		ms.ServeHTTP(w, r) // 其他路径传递给 ServerMux
 	}
 }
 
 var ch chan int
+
 var globalSessions *session.Manager
 var cmdSessions *cmdmgr.CmdSessionManager
+var sss *cmdmgr.CmdSession
 
 func main() {
 	sessionConfig := &session.ManagerConfig{
@@ -73,7 +80,7 @@ func main() {
 	}
 	globalSessions, _ = session.NewManager("memory", sessionConfig)
 	cmdSessions = cmdmgr.NewCmdManager()
-	sss := cmdSessions.GetCmdSession("123")
+	sss = cmdSessions.GetCmdSession("")
 	sss.Start()
 
 	fmt.Println("dir:", getCurrentDirectory())
@@ -82,153 +89,113 @@ func main() {
 	ms.HandleFunc("/", dealHTTPFunc)
 	ms.HandleFunc("/OutCmd", dealOutCmd)
 	ms.HandleFunc("/DoCmd", dealDoCmd)
+	ws = websocket.Handler(dealWebSocket)
 
 	fmt.Println("Start listen..")
 
 	cmd := exec.Command("cmd", " /c start "+"http://"+listenIP+":"+listenPort+"/")
 	cmd.Run()
+
+	//cmd1.Process.Kill()
 	go globalSessions.GC()
 
 	go http.ListenAndServe(listenIP+":"+listenPort, &as{})
 	<-ch
 }
 
-// CMD部分
-/*
-type cmdSessionManager struct {
-	sessions map[string]*cmdSession
-}
-type cmdSession struct {
-	running     bool
-	sessionID   string
-	cmd         *exec.Cmd
-	outcmd      chan string
-	incmd       chan string
-	end         bool
-	state       int
-	starttime   time.Time
-	lastcmdtime time.Time
-	endtime     time.Time
-}
-type checkSessionExist func(session string) bool
-
-func (cm *cmdSessionManager) GetCmdSession(sessionID string) *cmdSession {
-	if cs, ok := cm.sessions[sessionID]; ok {
-		return cs
-	}
-	cs := &cmdSession{
-		false,
-		sessionID,
-		nil,
-		make(chan string, 1024),
-		make(chan string, 1024),
-		false,
-		0,
-		time.Now(),
-		time.Now(),
-		time.Now(),
-	}
-	cm.sessions[sessionID] = cs
-	return cs
-}
-func (cm *cmdSessionManager) DeleteCmdSession(sessionID string) {
-	cs, ok := cm.sessions[sessionID]
-	if !ok {
-		return
-	}
-	cs.End(true)
-	delete(cm.sessions, sessionID)
-}
-func (cm *cmdSessionManager) CheckSessions(funcCheck checkSessionExist) {
-	for k, v := range cm.sessions {
-		if funcCheck(v.sessionID) != true {
-			cm.DeleteCmdSession(v.sessionID)
-		}
-	}
-}
-
-func (cs *cmdSession) Start() {
-	if cs.running {
-		return
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-}
-func (cs *cmdSession) End(force bool) {
-	if !cs.running {
-		return
-	}
-	if cs.cmd != nil && cs.cmd.Process != nil {
-		if !cs.cmd.ProcessState.Exited() {
-			if force {
-				cs.cmd.Process.Kill()
-			} else {
-				cs.cmd.Wait()
-			}
-		}
-	}
-	cs.cmd = nil
-	cs.running = false
-	close(cs.outcmd)
-	close(cs.incmd)
-}
-func (cs *cmdSession) Run() {
-
-}
-*/
 /// HTTP部分
 
 type infoStru struct {
 	Title   string
-	Cmd     string
 	TimeTag time.Time
 	SKey    string
 }
+
+// 首页
 
 func dealHTTPFunc(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	sess, _ := globalSessions.SessionStart(w, req)
 	defer sess.SessionRelease(w)
 	fmt.Println("get:", req.RequestURI)
-
-	cmd := req.Form.Get("cmd")
+	sess.Set("CmdLoaded", "true")
 
 	strKey := "whatareyou123456"
 	byteAes, _ := aesEncrypt([]byte(sess.SessionID()), []byte(strKey))
 	strAes, _ := toHex(byteAes)
 
-	info := infoStru{"WebCmd  v0.1 by wwcMonkey", cmd, time.Now(), strAes}
+	info := infoStru{"WebCmd  v0.1 by wwcMonkey", time.Now(), strAes}
 	tmpl, _ := template.ParseFiles("index.html")
 	tmpl.Execute(w, info)
-	/*
-		fmt.Fprint(w, "<html><head><title>WebCmd  v0.1 by wwcMonkey</title></head><body>", time.Now())
-		fmt.Fprint(w, "<script src=\"/Script/webc.js\"></script>")
-		fmt.Fprint(w, "\n<br>cmd:", cmd)
-		if cmd != "" {
-
-		}
-
-		fmt.Fprint(w, "\n<br>Output:<textarea style=\"width:500px;height:500px\"></textarea>")
-
-		fmt.Fprint(w, "<form method=\"post\" target=\"iframe1\" action=\"DoCmd\" id=\"form1\"><textarea name=\"cmd\" style=\"width:500px;height:20px\" id=\"cmd\"></textarea><iframe name=\"iframe1\" style=\"display:none\" id=\"iframe1\"></iframe>   <input type=\"submit\" value=\"DoCmd\"/></form>")
-
-		fmt.Fprint(w, "<script>", "var sKey=\""+strAes+"\";init(sKey);", "</script>")
-		fmt.Fprint(w, "</body></html>")*/
 }
 
-type outCmdStru struct {
-	outcmd  string
-	timetag time.Time
+type myResp struct {
+	header map[string][]string
+}
+
+func (resp myResp) Header() http.Header {
+	return resp.header
+}
+func (resp myResp) Write([]byte) (int, error) {
+	return 0, nil
+}
+func (resp myResp) WriteHeader(int) {
+
+}
+
+func dealWebSocket(ws *websocket.Conn) {
+	defer ws.Close()
+	fmt.Println("ws: build")
+	var err error
+	var str string
+	w := myResp{make(map[string][]string)}
+	sess, _ := globalSessions.SessionStart(w, ws.Request())
+	defer sess.SessionRelease(w)
+
+	fmt.Print("ws: wait for input..")
+	for {
+		if err = websocket.Message.Receive(ws, &str); err != nil {
+			fmt.Println("recv fail..")
+			break
+		} else {
+			if checkstr(&sess, str) == false {
+				fmt.Println("check fail..", str)
+				return
+			}
+			fmt.Println("check success..")
+		}
+
+		for {
+			fmt.Println("ws: wait for Outcmd..")
+			stro := <-sss.Outcmd
+			fmt.Print("ws: # ", stro)
+			if err = websocket.Message.Send(ws, stro); err != nil {
+				fmt.Println("send fail..")
+				break
+			} else {
+				//fmt.Println("向客户端发送：", str)
+			}
+		}
+	}
 }
 
 func check(sess *session.Store, req *http.Request) bool {
-	if (*sess).Get("CmdLoaded") != "true" {
+	return checkstr(sess, req.Form.Get("sKey"))
+}
+func checkstr(sess *session.Store, sKeyReq string) bool {
+	if (*sess).Get("CmdLoaded") != "true" || sKeyReq == "" {
 		return false
 	}
 
 	strKey := "whatareyou123456"
 	byteAes, _ := aesEncrypt([]byte((*sess).SessionID()), []byte(strKey))
 	strAes, _ := toHex(byteAes)
-	if req.Form.Get("sKey") != strAes {
+
+	h := md5.New()
+	h.Write([]byte(strAes))
+	strAes = hex.EncodeToString(h.Sum(nil))
+
+	if sKeyReq != strAes {
 		return false
 	}
 	return true
@@ -239,15 +206,26 @@ func dealDoCmd(w http.ResponseWriter, req *http.Request) {
 	if req.Form.Get("sKey") == "" {
 		return
 	}
+	fmt.Println("get:", req.RequestURI)
 	sess, _ := globalSessions.SessionStart(w, req)
 	defer sess.SessionRelease(w)
 
 	if check(&sess, req) == false {
 		return
 	}
+	cmd := req.Form.Get("cmd")
+	if cmd != "" {
+		sss.Incmd <- cmd
+	}
 
 	// 执行参数
 }
+
+type outCmdStru struct {
+	outcmd  string
+	timetag time.Time
+}
+
 func dealOutCmd(w http.ResponseWriter, req *http.Request) {
 	// 参数校验
 	req.ParseForm()
@@ -265,8 +243,8 @@ func dealOutCmd(w http.ResponseWriter, req *http.Request) {
 	var buffer bytes.Buffer
 	for {
 		select {
-		//case block := <-outcmd:
-		//	buffer.WriteString(block)
+		case block := <-sss.Outcmd:
+			buffer.WriteString(block)
 		default:
 			goto finished
 		}
