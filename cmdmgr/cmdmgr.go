@@ -1,7 +1,6 @@
 package cmdmgr
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os/exec"
@@ -124,11 +123,14 @@ func (cs *CmdSession) End(force bool) {
 
 func (cs *CmdSession) run(ioro int) {
 	if ioro == 1 {
-		reader := bufio.NewReader(cs.outpipe)
+		//reader := bufio.NewReader(cs.outpipe)
 		pid := cs.Cmd.Process.Pid
 		fmt.Println("pid :", pid)
 		for {
-			line, err2 := reader.ReadString('\n')
+			//line, err2 := reader.ReadString('\n')
+			ps := make([]byte, 1024)
+			n, err2 := cs.outpipe.Read(ps)
+			line := string(ps[:n])
 			if err2 != nil || io.EOF == err2 || cs.Cmd == nil || !cs.Running {
 				break
 			}

@@ -82,7 +82,7 @@ func main() {
 	cmdSessions = cmdmgr.NewCmdManager()
 	sss = cmdSessions.GetCmdSession("")
 	sss.Start()
-
+	sss.Incmd <- "cd testcmd&dir&echo.&echo  Try Input \"myinteract\",and have fun!"
 	fmt.Println("dir:", getCurrentDirectory())
 
 	fs = http.FileServer(http.Dir("./"))
@@ -163,6 +163,7 @@ func dealWebSocket(ws *websocket.Conn) {
 				return
 			}
 			fmt.Println("check success..")
+
 		}
 
 		for {

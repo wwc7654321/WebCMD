@@ -5,11 +5,18 @@
 <br>cmd: 
 <br>Output:
 <textarea style="width:500px;height:500px" id="stdout"></textarea>
+
 <form method="post" target="myIframe" action="DoCmd" id="form1">
-<input type="hidden" name="sKey" id="sKey"/>
-<textarea name="cmd" style="width:500px;height:20px" id="cmd"></textarea>
-<iframe name="myIframe" style="display:none"></iframe>
-<input type="submit" value="DoCmd"/></form>
+	<input type="hidden" name="sKey" id="sKey"/>
+	<p>
+		<input name="g1" type="radio" value="SingleLine" id="sl"/><label for="sl">SingleLine</label>
+		<input name="g1" type="radio" value="MultiLine" id="ml"/><label for="ml">MultiLine</label>
+	</p>
+	<input style="display:none;" style="width:500px;height:20px" id="cmdtxt"/>
+	<textarea name="cmd" style="width:500px;height:20px" id="cmd"></textarea>
+	<input type="submit" value="DoCmd"/>
+</form>
 <script>var sKey="{{.SKey}}";init(sKey);</script>
+<iframe name="myIframe" style="display:none"></iframe>
 </body>
 </html>

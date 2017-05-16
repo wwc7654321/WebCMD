@@ -13,30 +13,28 @@ function init(sesskey)
 			return;
 		}
 		$ID("sKey").value=sKeyReq;
-		$ID("form1").onsubmit=OnSubmit;
+		$ID("form1").onsubmit=function(){
+			setTimeout(function(){$ID("cmd").value="";$ID("cmdtxt").value="";},300);
+		};
+		$ID("ml").onchange=function(){
+			$ID("cmdtxt").style.display="none";
+			$ID("cmd").style.display="inline";
+		};
+		$ID("sl").onchange=function(){
+			$ID("cmdtxt").style.display="inline";
+			$ID("cmd").style.display="none";
+			$ID("cmdtxt").value=$ID("cmd").value;
+			$ID("cmdtxt").style.width=$ID("cmd").style.width;
+		};
+		$ID("cmdtxt").onchange=function(){
+			$ID("cmd").value=$ID("cmdtxt").value;
+		};
+		$ID("sl").checked="checked";
+		$ID("sl").onchange();
 		Build();
-	} 
-}
-function getCookie(c_name)
-{
-if (document.cookie.length>0)
-  {
-  c_start=document.cookie.indexOf(c_name + "=")
-  if (c_start!=-1)
-    { 
-    c_start=c_start + c_name.length+1 
-    c_end=document.cookie.indexOf(";",c_start)
-    if (c_end==-1) c_end=document.cookie.length
-    return unescape(document.cookie.substring(c_start,c_end))
-    } 
-  }
-return ""
+	};
 }
 
-function OnSubmit()
-{
-	setTimeout(function(){$ID("cmd").value="";},300);
-}
 
 function Build() {
 	pref = "";
