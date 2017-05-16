@@ -5,7 +5,8 @@ WebCmd 允许你通过Web页面实时与本地控制台程序进行交互，获�
 使用Stdin/out pipe与本地控制台程序交互，异步输入输出。
 输出通过HTML5的WebSocket推送给浏览器
     by wwcMonkey( https://github.com/wwc7654321)
-
+    
+![DemoGif](image/demo.gif)
 # Install
 go get github.com/wwc7654321/WebCMD
 
