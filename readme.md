@@ -2,12 +2,14 @@
 WebCmd 允许你通过Web页面实时与本地控制台程序进行交互，获取输出并显示。 
 纯属本人熟悉go语言的练手小作品。
 
-使用Stdin/out pipe与本地控制台程序交互，异步输入输出。
+使用Stdin/out pipe与本地控制台程序交互，实现全双工异步无阻塞输入输出。
 输出通过HTML5的WebSocket推送给浏览器
 
     by wwcMonkey( https://github.com/wwc7654321)
     
 ![DemoGif](image/demo.gif)
+
+可以看到Stdout与Stdin是双向无阻塞的
 
 # Install
 go get github.com/wwc7654321/WebCMD
@@ -39,7 +41,7 @@ wwc7654321/WebCmd by wwcMonkey( https://github.com/wwc7654321)
 
 3. WebSocket回调输出，仅单路、无历史、无重传
 
-4. 回调输出偶现丢数据的现象，待排查
+4. 回调输出偶现丢数据的现象，待排查
 
 话说之前看go的文档还不觉得，一上手就发现，开发一些小工具，开源轮子多真的是舒服，走哪都有前人留的路子。也难怪各位对此如此热衷。
 
