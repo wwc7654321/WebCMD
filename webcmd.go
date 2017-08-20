@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	listenIP   = "127.0.0.1"
+	listenIP   = "0.0.0.0"
 	listenPort = "8011"
 )
 
@@ -92,8 +92,13 @@ func main() {
 	ws = websocket.Handler(dealWebSocket)
 
 	fmt.Println("Start listen..")
+	var ips string
+	ips = listenIP
+	if ips == "0.0.0.0" {
+		ips = "127.0.0.1"
+	}
 
-	cmd := exec.Command("cmd", " /c start "+"http://"+listenIP+":"+listenPort+"/")
+	cmd := exec.Command("cmd", " /c start "+"http://"+ips+":"+listenPort+"/")
 	cmd.Run()
 
 	//cmd1.Process.Kill()
